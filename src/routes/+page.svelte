@@ -1,98 +1,101 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+  import { onMount } from 'svelte';
 
-	import Counter from './Counter.svelte';
-	import welcome from '$lib/images/svelte-welcome.webp';
-	import welcome_fallback from '$lib/images/svelte-welcome.png';
-	import { Cell, CellLoop, Stream, StreamSink, Transaction, Unit } from 'sodiumjs';
+  import Counter from './Counter.svelte';
+  import welcome from '$lib/images/svelte-welcome.webp';
+  import welcome_fallback from '$lib/images/svelte-welcome.png';
+  import { Cell, Stream, StreamSink } from 'sodiumjs';
 
-	onMount(() => {
-		const sMouseDown = new StreamSink();
-		const sMouseMove = new StreamSink();
-		const sMouseUp = new StreamSink();
+  let elementToDrag: HTMLElement;
 
-		// error happens from the above 6 lines already
+  onMount(() => {
+    const sMouseDown = new StreamSink<MouseEvent>();
+    const sMouseUp = new StreamSink<MouseEvent>();
+    const sMouseMove = new StreamSink<MouseEvent>();
 
-		Transaction.run(() => {
-			const doc = new CellLoop();
-			const sStartDrag = sMouseDown.snapshot(doc, event => {
-				const element = event.target;
-				return sMouseMove.snapshot(doc, moveEvent => {
-					console.log('mousemove', moveEvent);
-					element.translate(moveEvent.x, moveEvent.y);
-				});
-			});
+    const cDraggingElement = new Cell(elementToDrag);
 
-			const sIdle = new Stream<void>();
-			const sEndDrag = sMouseUp.map(() => sIdle);
-			const sDocUpdate = sStartDrag.orElse(sEndDrag).hold(sIdle);
-			sDocUpdate.listen(() => console.log('document updated'));
-		});
+    const sIdle = new Stream<void>();
+    const sEndDrag = sMouseUp.map(() => sIdle);
 
-		document.onmousedown = event => {
-			sMouseDown.send(event);
-		}
-		document.onmousemove = event => {
-			// TODO doesn't work atm as it fires before listeners are set? -> sMouseMove.send(event);
-		}
-		document.onmouseup = event => {
-			sMouseUp.send(event);
-		}
-		// did not work -> document.onmousedown = sMouseDown.send;
-		// also did not work as it triggers send() on declaration -> document.onmousemove = event => sMouseMove.send(event);
-	});
+    // map and snapshot count as a listen
+    // snapshot doesnt happen until mousedown -> snapshot === listen -> no listen until mousedown?
+    const sDrag = sMouseDown.snapshot(cDraggingElement, (event1, element) =>
+        sMouseMove.snapshot(cDraggingElement, (event2, element) => {
+          console.log('moving');
+        })
+    );
+
+    const sDocUpdate = sDrag.orElse(sEndDrag).hold(sIdle);
+
+    sDocUpdate.listen((event) => {
+      // console.log('Received Drag:');
+      // console.log(event);
+      // event?.target.translate(event.x, event.y); Dit geht nicht.
+    });
+
+    document.onmousedown = event => {
+      sMouseDown.send(event);
+    };
+    document.onmousemove = event => {
+      sMouseMove.send(event);
+    };
+    document.onmouseup = event => {
+      sMouseUp.send(event);
+    };
+  });
 </script>
 
 <svelte:head>
-	<title>Home</title>
-	<meta name="description" content="Svelte demo app" />
+    <title>Home</title>
+    <meta name="description" content="Svelte demo app"/>
 </svelte:head>
 
 <section>
-	<h1>
+    <h1>
 		<span class="welcome">
 			<picture>
-				<source srcset={welcome} type="image/webp" />
-				<img src={welcome_fallback} alt="Welcome" />
+				<source srcset={welcome} type="image/webp"/>
+				<img src={welcome_fallback} alt="Welcome" bind:this={elementToDrag}/>
 			</picture>
 		</span>
 
-		to your new<br />SvelteKit app
-	</h1>
+        to your new<br/>SvelteKit app
+    </h1>
 
-	<h2>
-		try editing <strong>src/routes/+page.svelte</strong>
-	</h2>
+    <h2>
+        try editing <strong>src/routes/+page.svelte</strong>
+    </h2>
 
-	<Counter />
+    <Counter/>
 </section>
 
 <style>
-	section {
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		flex: 0.6;
-	}
+    section {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        flex: 0.6;
+    }
 
-	h1 {
-		width: 100%;
-	}
+    h1 {
+        width: 100%;
+    }
 
-	.welcome {
-		display: block;
-		position: relative;
-		width: 100%;
-		height: 0;
-		padding: 0 0 calc(100% * 495 / 2048) 0;
-	}
+    .welcome {
+        display: block;
+        position: relative;
+        width: 100%;
+        height: 0;
+        padding: 0 0 calc(100% * 495 / 2048) 0;
+    }
 
-	.welcome img {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		top: 0;
-		display: block;
-	}
+    .welcome img {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        display: block;
+    }
 </style>
