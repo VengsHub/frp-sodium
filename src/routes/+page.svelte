@@ -3,31 +3,35 @@
   import { Cell, Stream, StreamSink } from 'sodiumjs';
 
   onMount(() => {
-    const sMouse = new StreamSink<MouseEvent>();
+    const sMouseDown = new StreamSink<MouseEvent>();
+    const sMouseMove = new StreamSink<MouseEvent>();
+    const sMouseUp = new StreamSink<MouseEvent>();
 
-    const sDrag = sMouse.filter(event => event.type === 'mousedown').map(mousedownEvent =>
-        sMouse.filter(event => event.type === 'mousemove').map(mousemoveEvent => {
+    // cell is needed for snapshot, even though we do not need one for this use case
+    const cDoc = new Cell(document);
+
+    const sDrag = sMouseDown.snapshot(cDoc, (mousedownEvent) =>
+        sMouseMove.snapshot(cDoc, mousemoveEvent => {
           mousedownEvent.target.style.left = mousemoveEvent.clientX + 'px';
           mousedownEvent.target.style.top = mousemoveEvent.clientY + 'px';
         })
     );
 
     const sIdle = new Stream<void>();
-    const sEndDrag = sMouse.filter(event => event.type === 'mouseup').map(() => sIdle);
+    const sEndDrag = sMouseUp.map(() => sIdle);
 
     const sDocUpdate = Cell.switchS(sDrag.orElse(sEndDrag).hold(sIdle));
 
-    sDocUpdate.listen(() => {
-    });
+    sDocUpdate.listen(() => {});
 
     document.onmousedown = event => {
-      sMouse.send(event);
+      sMouseDown.send(event);
     };
     document.onmousemove = event => {
-      sMouse.send(event);
+      sMouseMove.send(event);
     };
     document.onmouseup = event => {
-      sMouse.send(event);
+      sMouseUp.send(event);
     };
   });
 </script>
